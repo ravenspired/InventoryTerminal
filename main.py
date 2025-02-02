@@ -11,25 +11,68 @@ HEADERS = {
 }
 
 
-def get_stock_count(part_id):
-    """Fetch and sum stock quantities for a given part ID."""
+def get_stock_entries(part_id):
+    """Fetch all stock entries for a given part ID."""
     url = f"{BASE_URL}/stock/?part={part_id}"
     response = requests.get(url, headers=HEADERS)
     print(response)
     if response.status_code == 200:
         stock_entries = response.json()
         print(stock_entries)
-        return sum(entry["quantity"] for entry in stock_entries)  # Sum all stock entries
-    return 0
+        return stock_entries  # Return all stock entries
+    return []
+
+
+def update_stock(stock_entry_id, new_quantity):
+    """Update stock quantity for a specific stock entry."""
+    url = f"{BASE_URL}/stock/{stock_entry_id}/"
+    payload = {"quantity": new_quantity}
+    
+    response = requests.patch(url, json=payload, headers=HEADERS)
+    
+    if response.status_code in [200, 204]:  # 200 OK or 204 No Content
+        print(f"Stock updated successfully: ID {stock_entry_id}, New Quantity: {new_quantity}")
+        return True
+    else:
+        print(f"Failed to update stock: {response.status_code}, {response.text}")
+        return False
+
 
 # Example usage
-part_name = "dummy item"
-# part_id = get_part_id(part_name)
-part_id = eval(input("Scan Barcode: ")).get("part", "The key 'part' was not found in the dictionary.")
+part_id = eval(input("Scan Barcode: ")).get("part") or print("Invalid barcode scanned. Scan the PART barcode. It should have text describing the part.")
 
 if part_id:
-    stock_count = get_stock_count(part_id)
-    print(f"Total stock count for '{part_name}': {stock_count}")
-else:
-    print(f"Part '{part_name}' not found.")
+    stock_entries = get_stock_entries(part_id)
 
+    if stock_entries:
+        # Select the first available stock entry
+        stock_entry = stock_entries[0]
+        if len(stock_entries) > 1:
+            print("Multiple stock entries found. Please scan the stock label:")
+            for entry in stock_entries:
+                print(f"ID: {entry['pk']}, Quantity: {entry['quantity']}, Location: {entry.get('location', 'N/A')}")
+            
+            while True:
+                stock_entry_id = eval(input("Scan Barcode: ")).get("stockitem")
+                if stock_entry_id:
+                    break
+                else:
+                    print("Invalid barcode scanned. Scan the STOCK barcode. It shouldn't have any text.")
+            
+
+        else:
+            stock_entry = stock_entries[0]
+            stock_entry_id = stock_entry["pk"]
+
+        
+        current_quantity = stock_entry["quantity"]
+
+        if current_quantity > 0:
+            new_quantity = current_quantity - 1
+            update_stock(stock_entry_id, new_quantity)
+        else:
+            print(f"Stock for part '{part_id}' is already at zero.")
+    else:
+        print(f"No stock entries found for part '{part_id}'.")
+else:
+    print(f"Part '{part_id}' not found.")
