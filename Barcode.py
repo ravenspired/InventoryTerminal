@@ -9,9 +9,15 @@ class Barcode:
                 self.type = str(key)
                 self.data = str(barcode_data[key])
             else:
-                raise ValueError("Invalid barcode format")
+                self.type = None
+                self.data = None
+                print("Data isn't a dictionary")
+                #raise ValueError("Invalid barcode format")
         except (json.JSONDecodeError, ValueError) as e:
-            raise ValueError(f"Error parsing barcode: {e}")
+            self.type = None
+            self.data = None
+            print("Error parsing barcode: {e}")
+            #raise ValueError(f"Error parsing barcode: {e}")
 
     def __repr__(self):
         return f"Barcode(type='{self.type}', data='{self.data}')"

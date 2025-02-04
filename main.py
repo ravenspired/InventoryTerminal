@@ -1,4 +1,5 @@
 import requests
+from Barcode import Barcode, scan_barcode
 
 # InvenTree API settings
 BASE_URL = "http://inventory.local/api"
@@ -39,7 +40,19 @@ def update_stock(stock_entry_id, new_quantity):
 
 
 # Example usage
-part_id = eval(input("Scan Barcode: ")).get("part") or print("Invalid barcode scanned. Scan the PART barcode. It should have text describing the part.")
+
+while True:
+    barcode = scan_barcode()
+    if barcode.type == "part":
+        part_id = barcode.data
+        break
+    elif barcode.type == "command":
+        command = barcode.data
+        if command == "exit":
+            print("Quitting!")
+            exit()
+    else:
+        print("Invalid barcode scanned. Please scan again.")
 
 if part_id:
     stock_entries = get_stock_entries(part_id)
