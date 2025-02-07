@@ -22,3 +22,6 @@ class Stack:
 
     def size(self):
         return len(self.items)
+    
+    def __repr__(self):
+        return f"Stack({self.items})"

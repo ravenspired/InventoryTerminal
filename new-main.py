@@ -34,7 +34,7 @@ print("Please wait, contacting server...")
 parts = update_parts()
 print("Done")
 print("Please scan COMMAND code. ADD, SUBTRACT, EXIT")
-_, command = scan_barcode(["cmd"])
+_, command = scan_barcode(["command"])
 if command == "exit":
     print("Quitting!")
     exit()
@@ -46,13 +46,23 @@ if command == "add" or command == "subtract":
     active = True
 
 while active:
-    print("Please scan PART code")
-    _, item_code = scan_barcode(["part", "cmd"])
+    print("Please scan PART code. CURRENT COMMAND: ", command)
+    _, item_code = scan_barcode(["part", "command"])
 
 
     if item_code == "exit":
         print("exiting mode")
         active = False
+        continue
+
+    if item_code == "add":
+        print("Switching to ADD mode")
+        command = "add"
+        continue
+
+    if item_code == "subtract":
+        print("Switching to SUBTRACT mode")
+        command = "subtract"
         continue
 
     item_details = get_part_from_id(item_code)
@@ -62,32 +72,10 @@ while active:
 
     if command == "add":
         print(f"Adding part {item_details["name"]} with code {item_code}")
-        action_queue.append(("add", item_code))
+        action_queue.push(("add", item_code))
     elif command == "subtract":
         print(f"Subtracting part {item_details["name"]} with code {item_code}")
-        action_queue.append(("subtract", item_code))
+        action_queue.push(("subtract", item_code))
 
 
 print("Action queue: ", action_queue)
-
-while True:
-    barcode = scan_barcode()
-    if barcode.type == "part":
-        part_id = barcode.data
-        break
-    elif barcode.type == "command":
-        command = barcode.data
-        if command == "exit":
-            print("Quitting!")
-            exit()
-    else:
-        print("Invalid barcode scanned. Please scan again.")
-
-
-print("Part ID:", part_id)
-if part_id:
-    for part in parts:
-        if part['pk'] == int(part_id):
-            print(part)
-            print("found")
-            break
