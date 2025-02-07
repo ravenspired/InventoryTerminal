@@ -1,5 +1,6 @@
 import requests
-from Barcode import Barcode, scan_barcode
+from NewBarcode import scan_barcode
+from Stack import Stack
 
 # InvenTree API settings
 BASE_URL = "http://inventory.local/api"
@@ -23,8 +24,51 @@ def update_parts():
         return parts  # Return all stock entries
     return []
 
+def get_part_from_id(part_id):
+    for part in parts:
+        if part['pk'] == part_id:
+            return part
+    return None
 
+print("Please wait, contacting server...")
 parts = update_parts()
+print("Done")
+print("Please scan COMMAND code. ADD, SUBTRACT, EXIT")
+_, command = scan_barcode(["cmd"])
+if command == "exit":
+    print("Quitting!")
+    exit()
+
+
+action_queue = Stack()
+
+if command == "add" or command == "subtract":
+    active = True
+
+while active:
+    print("Please scan PART code")
+    _, item_code = scan_barcode(["part", "cmd"])
+
+
+    if item_code == "exit":
+        print("exiting mode")
+        active = False
+        continue
+
+    item_details = get_part_from_id(item_code)
+    if item_details is None:
+        print("The part code was not found on the server. Please try a different item")
+        continue
+
+    if command == "add":
+        print(f"Adding part {item_details["name"]} with code {item_code}")
+        action_queue.append(("add", item_code))
+    elif command == "subtract":
+        print(f"Subtracting part {item_details["name"]} with code {item_code}")
+        action_queue.append(("subtract", item_code))
+
+
+print("Action queue: ", action_queue)
 
 while True:
     barcode = scan_barcode()
