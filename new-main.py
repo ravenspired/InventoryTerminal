@@ -3,7 +3,7 @@ from NewBarcode import scan_barcode
 from Stack import Stack
 
 # InvenTree API settings
-BASE_URL = "http://inventory.local/api"
+BASE_URL = "http://inventory.voronet.net/api"
 API_TOKEN = "inv-d800a512df3a4c3365327b39298bcfe51782d83e-20250202"
 
 # Headers for authentication
@@ -40,7 +40,7 @@ if command == "exit":
     exit()
 
 
-action_queue = Stack()
+action_queue = []
 
 if command == "add" or command == "subtract":
     active = True
@@ -76,6 +76,11 @@ while active:
     elif command == "subtract":
         print(f"Subtracting part {item_details["name"]} with code {item_code}")
         action_queue.push(("subtract", item_code))
+
+
+    print("===============================")
+    
+
 
 
 print("Action queue: ", action_queue)
