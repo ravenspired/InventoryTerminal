@@ -20,8 +20,8 @@ def index():
 @socketio.on('input')
 def handle_input(data):
     # Send input to the subprocess
-    process.stdin.write(data['data'])
-    process.stdin.flush()
+    subprocess.stdin.write(data['data'])
+    subprocess.stdin.flush()
 
 if __name__ == '__main__':
     threading.Thread(target=run_script).start()
