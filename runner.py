@@ -1,13 +1,14 @@
 import requests
 from NewBarcode import scan_barcode
 from Stack import Stack
+from tqdm import tqdm
 
 
 def run():
     # InvenTree API settings
     BASE_URL = "http://inventory.local/api"
     print("Scan your ID card")
-    _,API_TOKEN = scan_barcode(["api"])
+    _,API_TOKEN = scan_barcode(["api"]) # Use PDF417 barcode type
 
     # Headers for authentication
     HEADERS = {
@@ -24,15 +25,18 @@ def run():
         return []
 
 
-    def update_stock(stock_entry_id, new_quantity):
+    def update_stock(stock_entry_id, new_quantity, new_location=-1):
         """Update stock quantity for a specific stock entry."""
         url = f"{BASE_URL}/stock/{stock_entry_id}/"
-        payload = {"quantity": new_quantity}
+        if new_location != -1:
+            payload = {"quantity": new_quantity, "location": new_location}
+        else:
+            payload = {"quantity": new_quantity}
         
         response = requests.patch(url, json=payload, headers=HEADERS)
         
         if response.status_code in [200, 204]:  # 200 OK or 204 No Content
-            print(f"Stock updated successfully: ID {stock_entry_id}, New Quantity: {new_quantity}")
+            #print(f"Stock updated successfully: ID {stock_entry_id}, New Quantity: {new_quantity}")
             return True
         else:
             print(f"Failed to update stock: {response.status_code}, {response.text}")
@@ -51,11 +55,11 @@ def run():
     def print_action_queue():
         """Prints the action queue after each scan."""
         print("Scanned Items:\n")
-        print("Quantity | Item Name | Item ID | Stock ID")
+        print("Quantity | Item Name | Item ID | Stock ID | Location")
         print("-------------------------------------------")
-        for stock_id, (quantity, part_id) in action_queue.items():
+        for stock_id, (quantity, part_id, location) in action_queue.items():
             part = get_part_by_id(part_id)
-            print(f"{quantity} | {part['name']} | {part_id} | {stock_id}")
+            print(f"{quantity} | {part['name']} | {part_id} | {stock_id} | {location if location_mode else 'N/A'}")
         print("\n")
 
 
@@ -71,25 +75,75 @@ def run():
     action_queue = {}
     active = True
     command = "subtract"
-
+    first_scan = True
+    second_scan = False
+    location_mode = False
+    location = None
+    previous_stock = None
+    use_prev_stock_item = False
+    repeat = 1
 
     while active:
         print(f"Please scan PART or STOCKITEM code. CURRENT COMMAND: {command}")
-        item_type, code = scan_barcode(["part", "command", "stockitem"])
+        item_type, code = scan_barcode(["part", "command", "stockitem", "stocklocation"])
 
         # Handle command switches or exit
-        if code in {"exit", "add", "subtract", "submit"}:
+
+
+        if first_scan:
+            if code == "location":
+                print("Switching to location mode.")
+                location_mode = True
+                command = "location"
+                first_scan = False
+                second_scan = True
+                print("Please scan the location code. To set the location to none, begin scanning your items.")
+                continue
+
+        if second_scan:
+            if item_type == "stocklocation":
+                location = code
+                print(f"Location set to {location}.")
+                print("Please begin scanning your items.")
+                second_scan = False
+                continue
+
+
+        if code in {"exit", "add", "subtract", "submit", "location"}:
             if code == "exit" or code == "submit":
                 print("Exiting mode")
                 active = False
+            if code == "location":
+                print("Please finish the current transaction before switching to location mode.")
+                continue
             else:
                 print(f"Switching to {code.upper()} mode!!!")
                 command = code
             continue
 
+        if code in {"repeat5", "repeat10", "repeat20"}:
+            if previous_stock is None:
+                print("No previous stock item to repeat. You can only use this code after scanning an item.")
+                continue
+            print(f"You scanned a repeat code. Repeating the last scan, {int(code[6:])} times.")
+            repeat = int(code[6:])
+            use_prev_stock_item = True
+
+        if item_type == "stocklocation":
+            print("This is a location code. Please scan a part or stock item code.")
+
+        
+
+        
+                
+
         # Process stock items
         stock_item_id = -1
-        if item_type == "stockitem":
+        if use_prev_stock_item:
+            code = previous_stock
+
+
+        if item_type == "stockitem" or use_prev_stock_item:
             stock_details = get_stock_by_id(code)
             if stock_details:
                 stock_item_id = code
@@ -98,13 +152,17 @@ def run():
                 print("Invalid stock item scanned.")
                 continue
 
+
         # Retrieve part details
         part_details = get_part_by_id(code)
-        if not part_details:
-            print("The part code was not found on the server. Please try a different item.")
-            continue
+
+        if not use_prev_stock_item:
+            if not part_details:
+                print("The part code was not found on the server. Please try a different item.")
+                continue
 
         # Check stock availability
+
         if part_details["stock_item_count"] == 0:
             print("This part is out of stock. Please try a different item.")
             continue
@@ -129,11 +187,22 @@ def run():
 
         # Assign stock item if not already set
         if stock_item_id == -1:
-            stock_item_id = next((stock["pk"] for stock in stocks if stock["part"] == code), -1)
+            if use_prev_stock_item:
+                stock_item_id = previous_stock
+                use_prev_stock_item = False
+            else:
+                stock_item_id = next((stock["pk"] for stock in stocks if stock["part"] == code), -1)
 
         # Update action queue
-        action = 1 if command == "add" else -1
-        action_queue[stock_item_id] = [action_queue.get(stock_item_id, [0])[0] + action, code]
+
+
+        previous_stock = stock_item_id
+
+        if not location_mode:
+            action = repeat if command == "add" else -1 * repeat
+            action_queue[stock_item_id] = [action_queue.get(stock_item_id, [0])[0] + action, code, "N/A"]
+        else:
+            action_queue[stock_item_id] = [action_queue.get(stock_item_id, [0])[0], code, location]
 
         print(f"{command.upper()} part {part_details['name']} (Code: {code}, Stock: {stock_item_id})")
         print("\n" * 50)
@@ -148,12 +217,18 @@ def run():
     print("Submit changes? (SCAN SUBMIT CODE)")
     _, submit_code = scan_barcode(["command"])
     if submit_code == "submit":
-        for stock_id, (quantity, _) in action_queue.items():
+        print("Submitting changes... This may take a while. Do not terminate the program.")
+        for stock_id, (quantity, location, _) in tqdm(action_queue.items()):
             stock_entry = next((stock for stock in stocks if stock["pk"] == stock_id), None)
             if stock_entry:
                 current_quantity = stock_entry["quantity"]
                 new_quantity = current_quantity + quantity
-                update_stock(stock_id, new_quantity)
+                if location_mode:
+                    new_location = action_queue[stock_id][2]
+                    update_stock(stock_id, new_quantity, new_location)
+                else:
+                    update_stock(stock_id, new_quantity)
+        print("Changes submitted successfully. Goodbye!")
     else:
         print("Changes discarded. Goodbye!")
 
