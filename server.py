@@ -25,4 +25,4 @@ def handle_input(data):
 
 if __name__ == '__main__':
     threading.Thread(target=run_script).start()
-    socketio.run(app, host='inventory-terminal.local', port=80)
+    socketio.run(app, host='inventory-console.local', port=80)
