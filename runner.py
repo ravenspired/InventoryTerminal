@@ -197,12 +197,16 @@ def run():
 
 
         previous_stock = stock_item_id
+        
 
         if not location_mode:
             action = repeat if command == "add" else -1 * repeat
             action_queue[stock_item_id] = [action_queue.get(stock_item_id, [0])[0] + action, code, "N/A"]
         else:
             action_queue[stock_item_id] = [action_queue.get(stock_item_id, [0])[0], code, location]
+
+        use_prev_stock_item = False # Reset flag
+        repeat = 1 # Reset repeat count
 
         print(f"{command.upper()} part {part_details['name']} (Code: {code}, Stock: {stock_item_id})")
         print("\n" * 50)
