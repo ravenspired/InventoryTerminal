@@ -15,7 +15,7 @@ def run_script():
 
 @app.route('/')
 def index():
-    return render_template('~/InventoryTerminal/index.html')
+    return render_template('index.html')
 
 @socketio.on('input')
 def handle_input(data):
