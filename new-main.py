@@ -64,27 +64,36 @@ if command == "add" or command == "subtract":
     active = True
 
 while active:
-    print("Please scan PART code. CURRENT COMMAND: ", command)
-    _, item_code = scan_barcode(["part", "command"])
+    print("Please scan PART or STOCKITEM code. CURRENT COMMAND: ", command)
+    type, code = scan_barcode(["part", "command", "stockitem"])
+    stock_item = -1
 
 
-    if item_code == "exit":
+    if code == "exit":
         print("exiting mode")
         active = False
         continue
 
-    if item_code == "add":
+    if code == "add":
         print("Switching to ADD mode")
         command = "add"
         continue
 
-    if item_code == "subtract":
+    if code == "subtract":
         print("Switching to SUBTRACT mode")
         command = "subtract"
         continue
 
-    item_details = get_part_from_id(item_code)
-    stock_item = -1
+    if type == "stockitem":
+        print("Scanned stock item")
+        stock_details = get_stock_from_id(code)
+        stock_item = code
+        print(stock_item)
+        code = stock_details["part"]
+        
+
+
+    item_details = get_part_from_id(code)
     if item_details is None:
         print("The part code was not found on the server. Please try a different item")
         continue
@@ -93,34 +102,34 @@ while active:
         print("This part is out of stock. Please try a different item")
         continue
 
-    if item_details["stock_item_count"] >> 1:
+    if item_details["stock_item_count"] >> 1 and stock_item == -1:
         print("This item has more than one stock item. Please scan the STOCK ITEM code. The label doesn't have text.")
         finished_getting_stock = False
         while not finished_getting_stock:
 
-            _, stock_item_code = scan_barcode(["stock"])
+            _, stock_item_code = scan_barcode(["stockitem"])
             stock_details = get_stock_from_id(stock_item_code)
             if stock_details is None:
                 print("The stock item code was not found on the server. Please try a different code")
                 continue
-            if stock_details["part"] != item_code:
+            if stock_details["part"] != code:
                 print("The stock item does not belong to the selected part. Please scan a STOCK ITEM on the same packaging as the part")
                 continue
             stock_item = stock_item_code
             finished_getting_stock = True
-
-    for stock in stocks:
-        if stock["part"] == item_code:
-            stock_item = stock["pk"]
-            break
+    if stock_item == -1:
+        for stock in stocks:
+            if stock["part"] == code:
+                stock_item = stock["pk"]
+                break
 
 
     if command == "add":
-        print(f"Adding part {item_details["name"]} with code {item_code} and stock code {stock_item}")
-        action_queue[item_code] = [action_queue.get(item_code, 0) + 1, stock_item]
+        print(f"Adding part {item_details["name"]} with code {code} and stock code {stock_item}")
+        action_queue[stock_item] = [action_queue.get(stock_item, [0])[0] + 1, code]
     elif command == "subtract":
-        print(f"Subtracting part {item_details["name"]} with code {item_code} and stock code {stock_item}")
-        action_queue[item_code] = [action_queue.get(item_code, 0) - 1, stock_item]
+        print(f"Subtracting part {item_details["name"]} with code {code} and stock code {stock_item}")
+        action_queue[stock_item] = [action_queue.get(stock_item, [0])[0] - 1, code]
 
 
     print("===============================")
