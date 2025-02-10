@@ -73,21 +73,33 @@ def run():
 
 
     action_queue = {}
+    create_queue = []
     active = True
     command = "subtract"
     first_scan = True
     second_scan = False
     location_mode = False
+    create_stock_mode = False
     location = None
     previous_stock = None
     use_prev_stock_item = False
     repeat = 1
+    
 
     while active:
         print(f"Please scan PART or STOCKITEM code. CURRENT COMMAND: {command}")
         item_type, code = scan_barcode(["part", "command", "stockitem", "stocklocation"])
 
         # Handle command switches or exit
+        if create_stock_mode:
+            if code == "exit":
+                print("Exiting CREATE STOCK mode.")
+                active = False
+            if item_type == "part":
+                create_queue.append(code)
+                print(f"Part {code} added to create queue.")
+                continue
+
 
 
         if first_scan:
@@ -98,6 +110,11 @@ def run():
                 first_scan = False
                 second_scan = True
                 print("Please scan the location code. To set the location to none, begin scanning your items.")
+                continue
+            if code == "new":
+                print("Switching to CREATE STOCK mode. For admins only!")
+                create_stock_mode = True
+                command = "new"
                 continue
 
         if second_scan:
@@ -163,9 +180,7 @@ def run():
 
         # Check stock availability
 
-        if part_details["stock_item_count"] == 0:
-            print("This part is out of stock. Please try a different item.")
-            continue
+
 
         # If multiple stock items exist, prompt for stock item scan
         if part_details["stock_item_count"] > 1 and stock_item_id == -1:
@@ -193,6 +208,11 @@ def run():
             else:
                 stock_item_id = next((stock["pk"] for stock in stocks if stock["part"] == code), -1)
 
+
+        if part_details["stock_item_count"] == 0:
+            print("This part is out of stock. Please try a different item.")
+            continue
+
         # Update action queue
 
 
@@ -214,6 +234,31 @@ def run():
         print_action_queue()
 
     # Final action queue summary
+    if create_stock_mode:
+        print("==========================================")
+        print("WARNING: YOU ARE ABOUT TO CREATE THE FOLLOWING STOCK ITEMS:")
+        for part_id in create_queue:
+            part = get_part_by_id(part_id)
+            print(f"Part: {part['name']} (ID: {part_id})")
+        print("==========================================")
+        print("Submit changes? (SCAN SUBMIT CODE)")
+        _, submit_code = scan_barcode(["command"])
+        if submit_code == "submit":
+            print("Submitting changes... This may take a while. Do not terminate the program.")
+            for part_id in tqdm(create_queue):
+                url = f"{BASE_URL}/stock/"
+                payload = {"part": part_id, "quantity": 0}
+                response = requests.post(url, json=payload, headers=HEADERS)
+                if response.status_code in [200, 201]:  # 200 OK or 201 Created
+                    #print(f"Stock created successfully for part ID {part_id}")
+                    continue
+                else:
+                    print(f"Failed to create stock: {response.status_code}, {response.text}")
+                    
+
+        return
+    
+
     print("==========================================")
     print("WARNING: YOU ARE ABOUT TO UPDATE THE DATABASE WITH THE FOLLOWING CHANGES:")
     print_action_queue()
@@ -236,5 +281,6 @@ def run():
     else:
         print("Changes discarded. Goodbye!")
 
+    return
 
 
